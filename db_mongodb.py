@@ -84,16 +84,17 @@ def get_logs_collection():
     return collection
 
 
-def save_entry(email: str, show: str) -> bool:
+def save_entry(email: str, show: str, quantity: int = 2) -> bool:
     """
     Save or overwrite an entry in MongoDB.
-    Email serves as the unique key; submitting again overwrites the show.
+    Email serves as the unique key; submitting again overwrites the show and quantity.
     Includes NoSQL injection prevention through parameterized queries.
     Also logs the action with timestamp.
 
     Args:
         email: User's email address (will be lowercased and used as unique key)
         show: Selected Broadway show name
+        quantity: Number of tickets (1 or 2, defaults to 2)
 
     Returns:
         bool: True if entry was saved successfully
@@ -116,6 +117,7 @@ def save_entry(email: str, show: str) -> bool:
             {
                 "email": email.lower(),
                 "show": show,
+                "quantity": quantity,
                 "timestamp": current_time,
             },
             upsert=True,
@@ -127,6 +129,7 @@ def save_entry(email: str, show: str) -> bool:
                 {
                     "email": email.lower(),
                     "show": show,
+                    "quantity": quantity,
                     "action": action,
                     "timestamp": current_time,
                 }
@@ -139,15 +142,15 @@ def save_entry(email: str, show: str) -> bool:
         return False
 
 
-def get_entry(email: str) -> Optional[str]:
+def get_entry(email: str) -> Optional[dict]:
     """
-    Retrieve the show for a given email from MongoDB.
+    Retrieve the entry (show and quantity) for a given email from MongoDB.
 
     Args:
         email: User's email address to look up
 
     Returns:
-        Optional[str]: The show name if found, None otherwise
+        Optional[dict]: A dictionary with 'show' and 'quantity' keys if found, None otherwise
 
     Raises:
         PyMongoError: If database operation fails
@@ -157,7 +160,7 @@ def get_entry(email: str) -> Optional[str]:
         entry = collection.find_one({"email": email.lower()})
 
         if entry:
-            return entry.get("show")
+            return {"show": entry.get("show"), "quantity": entry.get("quantity", 2)}
         return None
     except PyMongoError as e:
         st.error(f"Failed to retrieve entry: {str(e)}")
@@ -194,6 +197,7 @@ def delete_entry(email: str) -> bool:
                     {
                         "email": email.lower(),
                         "show": entry.get("show"),
+                        "quantity": entry.get("quantity", 2),
                         "action": "cancelled",
                         "timestamp": datetime.now(timezone.utc),
                     }

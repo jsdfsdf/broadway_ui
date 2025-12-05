@@ -94,10 +94,19 @@ selected_show = st.selectbox(
     index=0,
 )
 
+selected_quantity = st.selectbox(
+    "Number of tickets:",
+    options=[1, 2],
+    index=1,
+    format_func=lambda x: f"{x} ticket" if x == 1 else f"{x} tickets",
+)
+
 email_input = st.text_input(
     "Enter your email address:",
     placeholder="you@example.com",
 )
+
+st.markdown("---")
 
 col1, col2 = st.columns(2)
 
@@ -116,16 +125,18 @@ if submit_clicked:
         st.error("Please enter a valid email address (e.g., you@example.com).")
     else:
         existing_entry = get_entry(sanitized_email)
-        save_entry(sanitized_email, selected_show)
+        save_entry(sanitized_email, selected_show, selected_quantity)
 
         if existing_entry:
             st.success(
-                f"You're signed up for {selected_show} with email: {sanitized_email}"
+                f"You're signed up for {selected_show} with email: {sanitized_email} ({selected_quantity} ticket(s))"
             )
-            st.info(f"Your previous entry for {existing_entry} has been updated.")
+            st.info(
+                f"Your previous entry for {existing_entry['show']} has been updated."
+            )
         else:
             st.success(
-                f"You're signed up for {selected_show} with email: {sanitized_email}"
+                f"You're signed up for {selected_show} with email: {sanitized_email} ({selected_quantity} ticket(s))"
             )
 
 if cancel_clicked:
@@ -139,6 +150,8 @@ if cancel_clicked:
         existing_entry = get_entry(sanitized_email)
         if existing_entry:
             delete_entry(sanitized_email)
-            st.success(f"Your entry for {existing_entry} has been cancelled.")
+            st.success(
+                f"Your entry for {existing_entry['show']} ({existing_entry['quantity']} ticket(s)) has been cancelled."
+            )
         else:
             st.warning("No entry found for this email address.")
