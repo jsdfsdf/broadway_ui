@@ -71,6 +71,18 @@ def get_entries_collection():
     return collection
 
 
+def get_tries_collection():
+    """
+    Get the tries collection from the database.
+
+    Returns:
+        Collection: MongoDB collection for tires
+    """
+    db = get_database()
+    collection = db["tries"]
+    return collection
+
+
 def get_logs_collection():
     """
     Get the logs collection from the database.
@@ -82,6 +94,78 @@ def get_logs_collection():
     db = get_database()
     collection = db["logs"]
     return collection
+
+
+def log_tries(email: str, show: str, tries: int) -> None:
+    """
+    Log the number of tries for an email and show combination.
+        {
+    _id: ObjectId("..."),
+    email: "user@example.com",     // sanitized_email
+    show: "SHOW_NAME",             // stats_show
+    tries: 7,                      // latest tries OR canonical tries for that user+show
+    updatedAt: ISODate("2025-12-19T..."),
+    createdAt: ISODate("2025-12-19T...")
+    }
+    """
+
+    try:
+        collection = get_tries_collection()
+        current_time = datetime.now(timezone.utc)
+
+        # Use replace_one with upsert to handle both insert and update
+        collection.update_one(
+            {"email": email.lower(), "show": show},
+            {
+                "$set": {
+                    "tries": int(tries),
+                    "updatedAt": current_time,
+                },
+                "$setOnInsert": {
+                    "createdAt": current_time,
+                },
+            },
+            upsert=True,
+        )
+    except PyMongoError as e:
+        st.error(f"Failed to save entry: {str(e)}")
+
+
+def get_all_statistics():
+    try:
+        collection = get_tries_collection()
+        pipeline = [
+            {
+                "$group": {
+                    "_id": "$show",
+                    "avgTries": {"$avg": "$tries"},
+                    "count": {"$sum": 1},
+                }
+            },
+            {
+                "$project": {
+                    "_id": 0,
+                    "show": "$_id",
+                    # pick how you want to display:
+                    # round to integer for UI "X tries"
+                    "avgTries": {"$round": ["$avgTries", 0]},
+                    "count": 1,
+                }
+            },
+        ]
+
+        rows = list(collection.aggregate(pipeline))
+        # return dict like {
+        # "Friends": {"avgTries": 4, "count": 2},
+        # "Lost": {"avgTries": 2, "count": 1}
+        # }
+        return {
+            r["show"]: {"avgTries": int(r["avgTries"]), "count": r["count"]}
+            for r in rows
+        }
+    except PyMongoError as e:
+        st.error(f"Failed to get stats: {str(e)}")
+        return {}
 
 
 def save_entry(email: str, show: str, quantity: int = 2) -> bool:

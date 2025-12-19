@@ -1,6 +1,12 @@
 import streamlit as st
 import re
-from db_mongodb import save_entry, get_entry, delete_entry
+from db_mongodb import (
+    save_entry,
+    get_entry,
+    delete_entry,
+    log_tries,
+    get_all_statistics,
+)
 
 # =============================================================================
 # Mock Database Layer
@@ -81,77 +87,143 @@ SHOWS = [
 # Streamlit App
 # =============================================================================
 
-st.title("Broadway Lottery Entry")
+st.title("Broadway Lottery")
+tab1, tab2 = st.tabs(["Statistics", "Lottery Entry"])
+# =============================================================================
+# TAB 1: Statistics
+# =============================================================================
+with tab1:
+    st.subheader("Log Your Attempts")
+    st.write(
+        "Share how many tries it took you to win! Help us calculate average attempts per show."
+    )
 
-st.info(
-    "By submitting an entry, you will be automatically enrolled in the Broadway Direct lottery every day. "
-    "Use **Cancel Entry** if you wish to opt out."
-)
+    stats_show = st.selectbox(
+        "Select a show:",
+        options=SHOWS,
+        index=0,
+        key="stats_show",  # same auto id
+    )
 
-selected_show = st.selectbox(
-    "Select a show:",
-    options=SHOWS,
-    index=0,
-)
+    stats_email = st.text_input(
+        "Enter your email address:",
+        placeholder="you@example.com",
+        key="stats_email",  # same auto id if not
+    )
 
-selected_quantity = st.selectbox(
-    "Number of tickets:",
-    options=[1, 2],
-    index=1,
-    format_func=lambda x: f"{x} ticket" if x == 1 else f"{x} tickets",
-)
+    tries_input = st.number_input(
+        "How many times did you try?",
+        min_value=1,
+        step=1,
+        value=1,
+    )
 
-email_input = st.text_input(
-    "Enter your email address:",
-    placeholder="you@example.com",
-)
+    if st.button("Log Attempts", type="primary"):
+        sanitized_email = sanitize_input(stats_email)
 
-st.markdown("---")
-
-col1, col2 = st.columns(2)
-
-with col1:
-    submit_clicked = st.button("Submit Entry", type="primary")
-
-with col2:
-    cancel_clicked = st.button("Cancel Entry")
-
-if submit_clicked:
-    sanitized_email = sanitize_input(email_input)
-
-    if not sanitized_email:
-        st.error("Please enter an email address.")
-    elif not validate_email(sanitized_email):
-        st.error("Please enter a valid email address (e.g., you@example.com).")
-    else:
-        existing_entry = get_entry(sanitized_email)
-        save_entry(sanitized_email, selected_show, selected_quantity)
-
-        if existing_entry:
-            st.success(
-                f"You're signed up for {selected_show} with email: {sanitized_email} ({selected_quantity} ticket(s))"
-            )
-            st.info(
-                f"Your previous entry for {existing_entry['show']} has been updated."
-            )
+        if not sanitized_email:
+            st.error("Please enter an email address.")
+        elif not validate_email(sanitized_email):
+            st.error("Please enter a valid email address (e.g., you@example.com).")
         else:
-            st.success(
-                f"You're signed up for {selected_show} with email: {sanitized_email} ({selected_quantity} ticket(s))"
-            )
+            log_tries(sanitized_email, stats_show, int(tries_input))
+            st.success(f"Logged {tries_input} attempt(s) for {stats_show}!")
 
-if cancel_clicked:
-    sanitized_email = sanitize_input(email_input)
+    st.divider()
+    st.subheader("Average Tries Per Show")
 
-    if not sanitized_email:
-        st.error("Please enter your email address to cancel your entry.")
-    elif not validate_email(sanitized_email):
-        st.error("Please enter a valid email address (e.g., you@example.com).")
+    statistics = get_all_statistics()
+
+    if statistics:
+        for show in SHOWS:
+            if show in statistics:
+                avg_tries = statistics[show]["avgTries"]
+                count = statistics[show]["count"]
+                st.metric(
+                    label=show,
+                    value=f"{avg_tries} tries",
+                    delta=f"{count} reports",
+                    delta_color="off",
+                )
+            else:
+                st.metric(label=show, value="No data yet")
     else:
-        existing_entry = get_entry(sanitized_email)
-        if existing_entry:
-            delete_entry(sanitized_email)
-            st.success(
-                f"Your entry for {existing_entry['show']} ({existing_entry['quantity']} ticket(s)) has been cancelled."
-            )
+        st.info("No statistics available yet. Start logging your attempts!")
+
+# =============================================================================
+# TAB 2: Lottery Entry
+# =============================================================================
+with tab2:
+    st.subheader("Enter the Lottery")
+    st.info(
+        "By submitting an entry, you will be automatically enrolled in the Broadway Direct lottery every day. "
+        "Use **Cancel Entry** if you wish to opt out."
+    )
+
+    selected_show = st.selectbox(
+        "Select a show:",
+        options=SHOWS,
+        index=0,
+    )
+
+    selected_quantity = st.selectbox(
+        "Number of tickets:",
+        options=[1, 2],
+        index=1,
+        format_func=lambda x: f"{x} ticket" if x == 1 else f"{x} tickets",
+    )
+
+    email_input = st.text_input(
+        "Enter your email address:",
+        placeholder="you@example.com",
+    )
+
+    st.markdown("---")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        submit_clicked = st.button("Submit Entry", type="primary")
+
+    with col2:
+        cancel_clicked = st.button("Cancel Entry")
+
+    if submit_clicked:
+        sanitized_email = sanitize_input(email_input)
+
+        if not sanitized_email:
+            st.error("Please enter an email address.")
+        elif not validate_email(sanitized_email):
+            st.error("Please enter a valid email address (e.g., you@example.com).")
         else:
-            st.warning("No entry found for this email address.")
+            existing_entry = get_entry(sanitized_email)
+            save_entry(sanitized_email, selected_show, selected_quantity)
+
+            if existing_entry:
+                st.success(
+                    f"You're signed up for {selected_show} with email: {sanitized_email} ({selected_quantity} ticket(s))"
+                )
+                st.info(
+                    f"Your previous entry for {existing_entry['show']} has been updated."
+                )
+            else:
+                st.success(
+                    f"You're signed up for {selected_show} with email: {sanitized_email} ({selected_quantity} ticket(s))"
+                )
+
+    if cancel_clicked:
+        sanitized_email = sanitize_input(email_input)
+
+        if not sanitized_email:
+            st.error("Please enter your email address to cancel your entry.")
+        elif not validate_email(sanitized_email):
+            st.error("Please enter a valid email address (e.g., you@example.com).")
+        else:
+            existing_entry = get_entry(sanitized_email)
+            if existing_entry:
+                delete_entry(sanitized_email)
+                st.success(
+                    f"Your entry for {existing_entry['show']} ({existing_entry['quantity']} ticket(s)) has been cancelled."
+                )
+            else:
+                st.warning("No entry found for this email address.")
