@@ -83,6 +83,20 @@ SHOWS = [
     "WICKED",
 ]
 
+TELE_SHOWS = [
+    "Amahl and the Night Visitors",
+    "Art",
+    "Chess",
+    "Hell's Kitchen",
+    "Little Bear Ridge Road",
+    "Maybe Happy Ending",
+    "Operation Mincemeat",
+    "Ragtime",
+    "The Great Gatsby",
+    "Two Strangers",
+    "Oh, Mary!",
+]
+
 # =============================================================================
 # Streamlit App
 # =============================================================================
@@ -94,13 +108,18 @@ tab1, tab2 = st.tabs(["Statistics", "Lottery Entry"])
 # =============================================================================
 with tab1:
     st.subheader("Log Your Attempts")
-    st.write(
-        "Share how many tries it took you to win! Help us calculate average attempts per show."
+    st.markdown(
+        """
+        **How many tries did it take you to win?**
+       
+        Your answer helps us calculate the average number of attempts per show.  
+        Emails are used  *only*  to avoid duplicate entries per show.
+        """
     )
 
     stats_show = st.selectbox(
         "Select a show:",
-        options=SHOWS,
+        options=SHOWS + TELE_SHOWS,
         index=0,
         key="stats_show",  # same auto id
     )
@@ -114,6 +133,7 @@ with tab1:
     tries_input = st.number_input(
         "How many times did you try?",
         min_value=1,
+        max_value=90,  # or 50 for very popular shows
         step=1,
         value=1,
     )
@@ -135,7 +155,7 @@ with tab1:
     statistics = get_all_statistics()
 
     if statistics:
-        for show in SHOWS:
+        for show in SHOWS + TELE_SHOWS:
             if show in statistics:
                 avg_tries = statistics[show]["avgTries"]
                 count = statistics[show]["count"]
